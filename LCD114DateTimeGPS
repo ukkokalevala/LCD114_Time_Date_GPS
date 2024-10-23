@@ -1,0 +1,91 @@
+#include <TinyGPS++.h>
+#include <SoftwareSerial.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_ST7789.h>  // For the ST7789 display
+
+#define TFT_CS     10
+#define TFT_RST    8
+#define TFT_DC     9
+#define TFT_BL     7
+
+TinyGPSPlus gps;
+SoftwareSerial ss(2, 3); // RX, TX (Arduino Nano -> GPS)
+
+// Initialize the display object for ST7789
+Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, TFT_RST);
+
+// Define dark blue using RGB565 values
+#define DARK_BLUE 0x0010  // RGB565 format for dark blue
+
+void setup() {
+  // Initialize GPS communication
+  Serial.begin(9600);
+  ss.begin(9600);  // GPS module communication
+
+  // Initialize the display
+  tft.init(135, 240); // 1.14" display resolution
+  tft.setRotation(3);
+
+  // Set the backlight pin as output and turn on backlight
+  pinMode(TFT_BL, OUTPUT);
+  digitalWrite(TFT_BL, HIGH);
+
+  // Fill the entire screen with dark blue
+  tft.fillScreen(DARK_BLUE);
+  
+  // Debug: Print a message to confirm setup
+  Serial.println("Setup complete. Waiting for GPS signal...");
+}
+
+void loop() {
+  // Read GPS data
+  while (ss.available() > 0) {
+    gps.encode(ss.read());
+  }
+
+  // Check if GPS time and date are valid
+  if (gps.time.isValid() && gps.date.isValid()) {
+    // Clear the display area before updating time and date
+    tft.fillRect(0, 50, 240, 140, DARK_BLUE);  // Clear middle section (240x140)
+
+    // Get GPS date
+    int day = gps.date.day();
+    int month = gps.date.month();
+    int year = gps.date.year();
+
+    // Get GPS time in UTC and adjust for your time zone (2 hours behind)
+    int hour = gps.time.hour() + 2;
+    if (hour < 0) hour += 24;  // Adjust for negative hours (wrap around)
+
+    int minute = gps.time.minute();
+    int second = gps.time.second();
+
+    // Format the time and date as strings
+    char timeBuffer[9];  // Buffer to hold formatted time (HH:MM:SS)
+    sprintf(timeBuffer, "%02d:%02d:%02d", hour, minute, second);
+
+    char dateBuffer[11];  // Buffer to hold formatted date (DD/MM/YYYY)
+    sprintf(dateBuffer, "%02d/%02d/%04d", day, month, year);
+
+    // Display the date on the screen (in white)
+    tft.setTextColor(ST77XX_WHITE);  // Ensure white text with no background color set
+    tft.setTextSize(2);  // Smaller text size for the date
+    tft.setCursor(30, 60);  // Adjust the cursor for date display
+    tft.print(dateBuffer);  // Print the formatted date
+
+    // Display the time on the screen (in white)
+    tft.setTextSize(3);  // Larger text size for the time
+    tft.setCursor(30, 100);  // Adjust the cursor for time display
+    tft.print(timeBuffer);  // Print the formatted time
+
+    // Debug: Print the time and date to the Serial Monitor
+    Serial.print("Displayed Date: ");
+    Serial.println(dateBuffer);
+    Serial.print("Displayed Time: ");
+    Serial.println(timeBuffer);
+  } else {
+    Serial.println("Waiting for valid GPS date and time...");
+  }
+
+  delay(1000);  // Update every second
+}
